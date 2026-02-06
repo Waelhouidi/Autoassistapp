@@ -1,0 +1,29 @@
+# Root .gitignore for AutoAssist Project
+
+# Node.js
+**/node_modules/
+backend/.env
+backend/firebase-service-account.json
+
+# Flutter
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.server
+**/.metadata
+
+# IDEs
+**/.idea/
+**/.vscode/
+*.iml
+*.iws
+
+# System
+.DS_Store
+Thumbs.db
+
+# Misc
+**/coverage/
+**/analysis_output.txt
