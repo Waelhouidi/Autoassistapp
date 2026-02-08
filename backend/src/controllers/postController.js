@@ -1,8 +1,9 @@
 /**
  * Post Controller
- * Handles post enhancement and publishing endpoints
+ * Handles post enhancement, scheduling, and publishing endpoints
  */
 const { postService } = require('../services');
+const schedulerService = require('../services/schedulerService');
 const { successResponse, createdResponse } = require('../utils/apiResponse');
 const { asyncHandler, ApiError } = require('../middleware');
 const logger = require('../config/logger');
@@ -12,16 +13,17 @@ const logger = require('../config/logger');
  * POST /api/posts/enhance
  */
 const enhanceContent = asyncHandler(async (req, res) => {
-    const { content, platforms } = req.body;
+    const { content, platforms, scheduledAt } = req.body;
     const userId = req.user.id;
 
     logger.info('Enhance request received', {
         userId,
         platforms,
         contentLength: content.length,
+        scheduledAt: scheduledAt || 'immediate',
     });
 
-    const result = await postService.enhancePost(userId, content, platforms);
+    const result = await postService.enhancePost(userId, content, platforms, { scheduledAt });
 
     return createdResponse(res, {
         postId: result.id,
@@ -30,6 +32,7 @@ const enhanceContent = asyncHandler(async (req, res) => {
         enhanced_content: result.enhancedContent,
         platforms: result.platforms,
         status: result.status,
+        scheduledAt: result.scheduledAt,
         metadata: result.metadata,
     }, 'Content enhanced successfully');
 });
@@ -37,9 +40,10 @@ const enhanceContent = asyncHandler(async (req, res) => {
 /**
  * Publish content to platforms
  * POST /api/posts/publish
+ * Supports both immediate and scheduled publishing
  */
 const publishContent = asyncHandler(async (req, res) => {
-    const { postId, content, platforms } = req.body;
+    const { postId, content, platforms, scheduledAt, publishNow = true } = req.body;
     const userId = req.user.id;
 
     // Determine content to publish
@@ -58,6 +62,31 @@ const publishContent = asyncHandler(async (req, res) => {
         throw ApiError.badRequest('No content provided for publishing');
     }
 
+    // Handle scheduled publishing
+    if (scheduledAt && !publishNow) {
+        logger.info('Scheduling post for later', {
+            userId,
+            postId,
+            scheduledAt,
+            platforms,
+        });
+
+        const scheduledPost = await schedulerService.schedulePost(
+            userId,
+            postId,
+            scheduledAt,
+            platforms
+        );
+
+        return successResponse(res, {
+            message: 'Post scheduled successfully',
+            postId: scheduledPost.id,
+            scheduledAt: scheduledAt,
+            platforms: platforms,
+        }, 'Content scheduled for publishing');
+    }
+
+    // Immediate publishing
     const result = await postService.publishPost(
         userId,
         postId,
@@ -70,6 +99,67 @@ const publishContent = asyncHandler(async (req, res) => {
         results: result.results,
         postId,
     }, 'Content published successfully');
+});
+
+/**
+ * Schedule a post for later
+ * POST /api/posts/schedule
+ */
+const schedulePost = asyncHandler(async (req, res) => {
+    const { postId, scheduledAt, platforms } = req.body;
+    const userId = req.user.id;
+
+    if (!postId) {
+        throw ApiError.badRequest('Post ID is required');
+    }
+
+    if (!scheduledAt) {
+        throw ApiError.badRequest('Scheduled date/time is required');
+    }
+
+    // Validate scheduled date is in the future
+    const scheduledDate = new Date(scheduledAt);
+    if (scheduledDate <= new Date()) {
+        throw ApiError.badRequest('Scheduled date must be in the future');
+    }
+
+    const result = await schedulerService.schedulePost(
+        userId,
+        postId,
+        scheduledAt,
+        platforms || []
+    );
+
+    return successResponse(res, {
+        postId: result.id,
+        scheduledAt: scheduledAt,
+        status: 'scheduled',
+    }, 'Post scheduled successfully');
+});
+
+/**
+ * Get user's scheduled posts
+ * GET /api/posts/scheduled
+ */
+const getScheduledPosts = asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+
+    const posts = await schedulerService.getScheduledPosts(userId);
+
+    return successResponse(res, posts, 'Scheduled posts retrieved successfully');
+});
+
+/**
+ * Cancel a scheduled post
+ * DELETE /api/posts/schedule/:id
+ */
+const cancelScheduledPost = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    await schedulerService.cancelScheduledPost(userId, id);
+
+    return successResponse(res, null, 'Schedule cancelled successfully');
 });
 
 /**
@@ -137,6 +227,9 @@ const getStats = asyncHandler(async (req, res) => {
 module.exports = {
     enhanceContent,
     publishContent,
+    schedulePost,
+    getScheduledPosts,
+    cancelScheduledPost,
     getPosts,
     getPost,
     deletePost,

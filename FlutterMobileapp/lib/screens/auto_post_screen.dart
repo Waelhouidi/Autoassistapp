@@ -5,6 +5,8 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_typography.dart';
 import '../core/theme/app_spacing.dart';
 import '../services/post_service.dart';
+import '../services/platform_service.dart';
+import 'platform_connection_screen.dart';
 
 class AutoPostScreen extends StatefulWidget {
   const AutoPostScreen({super.key});
@@ -18,9 +20,19 @@ class _AutoPostScreenState extends State<AutoPostScreen>
   final TextEditingController _contentController = TextEditingController();
   final Set<String> _selectedPlatforms = {};
   String _enhancedContent = '';
+  String? _currentPostId;
   bool _isEnhancing = false;
   bool _isPublishing = false;
+  bool _isScheduling = false;
   bool _showResult = false;
+
+  // Scheduling
+  DateTime? _scheduledDateTime;
+  bool _scheduleMode = false;
+
+  // Platform connection status
+  Map<String, PlatformConnection> _platformStatus = {};
+  bool _loadingPlatforms = true;
 
   late AnimationController _gradientController;
   late AnimationController _orbController;
@@ -33,6 +45,20 @@ class _AutoPostScreenState extends State<AutoPostScreen>
   void initState() {
     super.initState();
     _initAnimations();
+    _loadPlatformStatus();
+  }
+
+  Future<void> _loadPlatformStatus() async {
+    setState(() => _loadingPlatforms = true);
+    try {
+      final status = await PlatformService.getPlatformStatus();
+      setState(() {
+        _platformStatus = status;
+        _loadingPlatforms = false;
+      });
+    } catch (e) {
+      setState(() => _loadingPlatforms = false);
+    }
   }
 
   void _initAnimations() {
@@ -96,6 +122,7 @@ class _AutoPostScreenState extends State<AutoPostScreen>
       setState(() {
         _enhancedContent =
             result['improvedContent'] ?? result['enhanced_content'] ?? '';
+        _currentPostId = result['postId'];
         _showResult = true;
       });
       _showToast('✨ Content enhanced perfectly!');
@@ -129,12 +156,12 @@ class _AutoPostScreenState extends State<AutoPostScreen>
     });
 
     try {
-      final success = await PostService.publishContent(
+      final result = await PostService.publishContent(
         content,
         _selectedPlatforms.toList(),
       );
 
-      if (success) {
+      if (result['success'] == true) {
         _showToast('🎉 Published successfully!');
         HapticFeedback.heavyImpact();
 
@@ -149,6 +176,9 @@ class _AutoPostScreenState extends State<AutoPostScreen>
             });
           }
         });
+      } else {
+        _showToast('Publishing failed: ${result['message'] ?? 'Unknown error'}',
+            isError: true);
       }
     } catch (e) {
       _showToast('Publishing failed: ${e.toString()}', isError: true);
@@ -765,8 +795,11 @@ class _AutoPostScreenState extends State<AutoPostScreen>
   }
 
   Widget _buildActionButtons() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
+        // Enhance Button
         _buildActionButton(
           label: _isEnhancing ? 'Enhancing...' : 'Enhance with AI',
           icon: Icons.auto_awesome_rounded,
@@ -777,17 +810,396 @@ class _AutoPostScreenState extends State<AutoPostScreen>
           isLoading: _isEnhancing,
         ),
         const SizedBox(height: 16),
+
+        // Schedule Toggle
+        _buildScheduleSection(isDark),
+        const SizedBox(height: 16),
+
+        // Publish/Schedule Button
         _buildActionButton(
-          label: _isPublishing ? 'Publishing...' : 'Publish Now',
-          icon: Icons.send_rounded,
-          onTap: _isPublishing ? null : _publishContent,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
+          label: _isPublishing
+              ? 'Publishing...'
+              : (_isScheduling
+                  ? 'Scheduling...'
+                  : (_scheduleMode && _scheduledDateTime != null
+                      ? 'Schedule for Later'
+                      : 'Publish Now')),
+          icon: _scheduleMode && _scheduledDateTime != null
+              ? Icons.schedule_send_rounded
+              : Icons.send_rounded,
+          onTap: (_isPublishing || _isScheduling)
+              ? null
+              : _handlePublishOrSchedule,
+          gradient: LinearGradient(
+            colors: _scheduleMode && _scheduledDateTime != null
+                ? [const Color(0xFF3498DB), const Color(0xFF2980B9)]
+                : [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
           ),
-          isLoading: _isPublishing,
+          isLoading: _isPublishing || _isScheduling,
         ),
+
+        const SizedBox(height: 24),
+
+        // Connect Platforms Button
+        _buildConnectPlatformsButton(isDark),
       ],
     );
+  }
+
+  Widget _buildScheduleSection(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _scheduleMode
+              ? const Color(0xFF3498DB).withValues(alpha: 0.5)
+              : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Toggle
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _scheduleMode
+                        ? [const Color(0xFF3498DB), const Color(0xFF2980B9)]
+                        : [Colors.grey.shade400, Colors.grey.shade500],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.schedule_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Schedule for Later',
+                      style: AppTypography.bodyBold.copyWith(
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'Set a specific date and time',
+                      style: AppTypography.caption.copyWith(
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _scheduleMode,
+                onChanged: (value) {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _scheduleMode = value;
+                    if (!value) _scheduledDateTime = null;
+                  });
+                },
+                activeColor: const Color(0xFF3498DB),
+              ),
+            ],
+          ),
+
+          // Date/Time Picker
+          if (_scheduleMode) ...[
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: _pickDateTime,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF3498DB).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      color: Color(0xFF3498DB),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _scheduledDateTime != null
+                            ? _formatDateTime(_scheduledDateTime!)
+                            : 'Tap to select date & time',
+                        style: TextStyle(
+                          color: _scheduledDateTime != null
+                              ? (isDark ? Colors.white : Colors.black87)
+                              : Colors.grey,
+                          fontWeight: _scheduledDateTime != null
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade400,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectPlatformsButton(bool isDark) {
+    final connectedCount =
+        _platformStatus.values.where((p) => p.connected).length;
+
+    return InkWell(
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const PlatformConnectionScreen(),
+          ),
+        );
+        // Reload platform status after returning
+        _loadPlatformStatus();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.link_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Connect Your Accounts',
+                    style: AppTypography.bodyBold.copyWith(
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    _loadingPlatforms
+                        ? 'Loading...'
+                        : '$connectedCount platform${connectedCount != 1 ? 's' : ''} connected',
+                    style: AppTypography.caption.copyWith(
+                      color: connectedCount > 0
+                          ? AppColors.success
+                          : (isDark ? Colors.white60 : Colors.black54),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: isDark ? Colors.white38 : Colors.grey.shade400,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDateTime() async {
+    final now = DateTime.now();
+
+    // Pick Date
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _scheduledDateTime ?? now.add(const Duration(hours: 1)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: const Color(0xFF3498DB),
+                ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (date == null) return;
+
+    // Pick Time
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+        _scheduledDateTime ?? now.add(const Duration(hours: 1)),
+      ),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: const Color(0xFF3498DB),
+                ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (time == null) return;
+
+    final scheduled = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+
+    if (scheduled.isBefore(DateTime.now())) {
+      _showToast('Please select a future date/time', isError: true);
+      return;
+    }
+
+    HapticFeedback.selectionClick();
+    setState(() => _scheduledDateTime = scheduled);
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final amPm = dt.hour >= 12 ? 'PM' : 'AM';
+    final minute = dt.minute.toString().padLeft(2, '0');
+
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:$minute $amPm';
+  }
+
+  Future<void> _handlePublishOrSchedule() async {
+    final content = _enhancedContent.isNotEmpty
+        ? _enhancedContent
+        : _contentController.text.trim();
+
+    if (content.isEmpty) {
+      _showToast('Nothing to publish yet! 📝', isError: true);
+      return;
+    }
+
+    if (_selectedPlatforms.isEmpty) {
+      _showToast('Select platforms first! 🎯', isError: true);
+      return;
+    }
+
+    // Check if scheduling
+    if (_scheduleMode) {
+      if (_scheduledDateTime == null) {
+        _showToast('Please select a date and time! 📅', isError: true);
+        return;
+      }
+      await _scheduleContent();
+    } else {
+      await _publishContent();
+    }
+  }
+
+  Future<void> _scheduleContent() async {
+    setState(() => _isScheduling = true);
+
+    try {
+      final content = _enhancedContent.isNotEmpty
+          ? _enhancedContent
+          : _contentController.text.trim();
+
+      final result = await PostService.publishContent(
+        content,
+        _selectedPlatforms.toList(),
+        postId: _currentPostId,
+        scheduledAt: _scheduledDateTime!.toIso8601String(),
+        publishNow: false,
+      );
+
+      if (result['success'] == true) {
+        _showToast('📅 Scheduled for ${_formatDateTime(_scheduledDateTime!)}');
+        HapticFeedback.heavyImpact();
+
+        // Reset form after 2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {
+              _contentController.clear();
+              _enhancedContent = '';
+              _currentPostId = null;
+              _showResult = false;
+              _selectedPlatforms.clear();
+              _scheduleMode = false;
+              _scheduledDateTime = null;
+            });
+          }
+        });
+      } else {
+        _showToast('Scheduling failed: ${result['message'] ?? 'Unknown error'}',
+            isError: true);
+      }
+    } catch (e) {
+      _showToast('Scheduling failed: ${e.toString()}', isError: true);
+    } finally {
+      setState(() => _isScheduling = false);
+    }
   }
 
   Widget _buildActionButton({

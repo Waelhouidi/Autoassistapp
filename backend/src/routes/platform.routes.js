@@ -28,6 +28,13 @@ router.get('/auth/:platform', verifyToken, platformController.initAuth);
  */
 router.post('/callback/:platform', verifyToken, platformController.authCallback);
 
+/**
+ * @route   POST /api/platforms/connect-credentials/:platform
+ * @desc    Connect platform using email and password
+ * @access  Private
+ */
+router.post('/connect-credentials/:platform', verifyToken, platformController.connectWithCredentials);
+
 
 /**
  * @route   DELETE /api/platforms/disconnect/:platform

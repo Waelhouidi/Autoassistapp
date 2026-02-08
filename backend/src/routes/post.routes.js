@@ -1,6 +1,6 @@
 /**
  * Post Routes
- * Content enhancement and publishing endpoints
+ * Content enhancement, scheduling, and publishing endpoints
  */
 const express = require('express');
 const router = express.Router();
@@ -32,7 +32,7 @@ router.post(
 
 /**
  * @route   POST /api/posts/publish
- * @desc    Publish content to platforms
+ * @desc    Publish content to platforms (immediate or scheduled)
  * @access  Private
  */
 router.post(
@@ -42,6 +42,39 @@ router.post(
     publishContentRules,
     validate,
     postController.publishContent
+);
+
+/**
+ * @route   POST /api/posts/schedule
+ * @desc    Schedule a post for later publishing
+ * @access  Private
+ */
+router.post(
+    '/schedule',
+    verifyToken,
+    postController.schedulePost
+);
+
+/**
+ * @route   GET /api/posts/scheduled
+ * @desc    Get all scheduled posts for the user
+ * @access  Private
+ */
+router.get(
+    '/scheduled',
+    verifyToken,
+    postController.getScheduledPosts
+);
+
+/**
+ * @route   DELETE /api/posts/schedule/:id
+ * @desc    Cancel a scheduled post
+ * @access  Private
+ */
+router.delete(
+    '/schedule/:id',
+    verifyToken,
+    postController.cancelScheduledPost
 );
 
 /**

@@ -1,0 +1,669 @@
+{
+    "name": "AI-Enhanced Social Publisher - SaaS Edition",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "flutter-linkedin-manager",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "eeb0f96d-345c-42ad-be85-f2412e715f09",
+            "name": "Webhook - Receive Draft",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                -112,
+                -64
+            ],
+            "webhookId": "4a5436da-315b-4167-8d1d-5efbdea31f95"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=You are an expert Social Media Editor and Translator. \nYour only task is to rewrite the input text below to be professional, engaging, and grammatically perfect.\n\nCRITICAL RULES:\n1. DETECT the language of the input text.\n2. OUTPUT in the EXACT SAME LANGUAGE as the input. (e.g., if input is French, output French).\n3. Do NOT add introductions like \"Here is the rewritten text\". \n4. Do NOT explain your changes. \n5. Do NOT ask for more context. \n6. JUST output the final rewritten post.\n\nInput Text to Rewrite:\n\"{{ $json.body.content }}\"",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                112,
+                -64
+            ],
+            "id": "85486aef-1148-4958-bfe1-39af5c6a8f68",
+            "name": "AI Agent - Gemini"
+        },
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                112,
+                128
+            ],
+            "id": "ff4ed2b5-a837-4d8b-8cf1-d1535ebacdf7",
+            "name": "Google Gemini Chat Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "xqBqA9R1gGW6J75x",
+                    "name": "Google Gemini(PaLM) Api account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const aiResponse = $input.first().json.output || $input.first().json.response || $input.first().json.text;\nconst originalBody = $node[\"Webhook - Receive Draft\"].json.body;\n\nreturn {\n  json: {\n    status: \"draft_ready\",\n    original_content: originalBody.content,\n    improved_content: aiResponse.trim(),\n    platforms: originalBody.platforms,\n    user_id: originalBody.user_id || 'unknown',\n    post_id: originalBody.post_id || null,\n    scheduled_at: originalBody.scheduled_at || null,\n    timestamp: new Date().toISOString()\n  }\n};"
+            },
+            "id": "8d52fa22-aaf7-4772-b4f9-f67540acc580",
+            "name": "Format AI Response",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                320,
+                -64
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}",
+                "options": {}
+            },
+            "id": "c8c100e0-f433-4582-889b-5b22c289e99f",
+            "name": "Send Draft to App",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                544,
+                -64
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "flutter-publish-approved",
+                "options": {}
+            },
+            "id": "2681196b-683e-4b28-b6b7-b93dd1235daf",
+            "name": "Webhook - Receive Approval",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                -208,
+                304
+            ],
+            "webhookId": "dc62121d-2fe3-4cd7-8cf0-4f590173f75a"
+        },
+        {
+            "parameters": {
+                "jsCode": "const data = $input.first().json;\nconst body = data.body || data;\n\n// Determine the action type\nconst action = body.action || 'publish';\n\n// Extract all relevant fields\nconst result = {\n  action: action,\n  post_id: body.post_id || null,\n  user_id: body.user_id || 'unknown',\n  improved_content: body.improved_content || body.content || '',\n  platforms: Array.isArray(body.platforms) ? body.platforms : [],\n  scheduled_at: body.scheduled_at || null,\n  publish_now: body.publish_now !== false,\n  \n  // User-specific OAuth credentials (for SaaS mode)\n  user_credentials: body.user_credentials || {},\n  \n  timestamp: new Date().toISOString()\n};\n\nconsole.log('Parsed publish request:', JSON.stringify(result));\n\nreturn { json: result };"
+            },
+            "id": "parse-publish-request",
+            "name": "Parse Publish Request",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                16,
+                304
+            ]
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.action }}",
+                                        "rightValue": "schedule",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "check-schedule"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "schedule"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.action }}",
+                                        "rightValue": "publish",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "check-publish"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "publish"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.action }}",
+                                        "rightValue": "cancel",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "check-cancel"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "cancel"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "extra"
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                240,
+                304
+            ],
+            "id": "action-router",
+            "name": "Action Router"
+        },
+        {
+            "parameters": {
+                "jsCode": "const data = $input.first().json;\n\n// Store scheduled post info (in production, save to database)\nconst scheduledPost = {\n  post_id: data.post_id,\n  user_id: data.user_id,\n  content: data.improved_content,\n  platforms: data.platforms,\n  scheduled_at: data.scheduled_at,\n  user_credentials: data.user_credentials,\n  status: 'scheduled',\n  created_at: new Date().toISOString()\n};\n\nconsole.log('Post scheduled:', JSON.stringify(scheduledPost));\n\nreturn {\n  json: {\n    status: 'scheduled',\n    message: 'Post scheduled successfully',\n    post_id: data.post_id,\n    scheduled_at: data.scheduled_at,\n    platforms: data.platforms\n  }\n};"
+            },
+            "id": "handle-schedule",
+            "name": "Handle Schedule",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                480,
+                160
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const data = $input.first().json;\n\nconsole.log('Processing publish request:', JSON.stringify(data));\n\nconst platforms = data.platforms || [];\nconst improvedContent = data.improved_content || 'Error: No content found';\nconst userCredentials = data.user_credentials || {};\n\nif (platforms.length === 0) {\n  return [{\n    json: {\n      error: 'No platforms found',\n      improved_content: improvedContent\n    }\n  }];\n}\n\n// Create output for each platform with user credentials\nreturn platforms.map(platform => ({\n  json: {\n    platform: platform.toLowerCase(),\n    improved_content: improvedContent,\n    post_id: data.post_id,\n    user_id: data.user_id,\n    // Pass platform-specific credentials if available\n    credentials: userCredentials[platform.toLowerCase()] || null\n  }\n}));"
+            },
+            "id": "split-platforms",
+            "name": "Split and Prepare Platforms",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                480,
+                304
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const data = $input.first().json;\n\nconsole.log('Cancelling post:', data.post_id);\n\nreturn {\n  json: {\n    status: 'cancelled',\n    message: 'Post cancelled successfully',\n    post_id: data.post_id\n  }\n};"
+            },
+            "id": "handle-cancel",
+            "name": "Handle Cancel",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                480,
+                448
+            ]
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.platform }}",
+                                        "rightValue": "linkedin",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "check-linkedin"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "linkedin"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.platform }}",
+                                        "rightValue": "twitter",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "check-twitter"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "twitter"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "extra"
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                704,
+                304
+            ],
+            "id": "platform-router",
+            "name": "Platform Router"
+        },
+        {
+            "parameters": {
+                "person": "ODbPlF39_Y",
+                "text": "={{ $json.improved_content }}",
+                "additionalFields": {}
+            },
+            "name": "LinkedIn Post",
+            "type": "n8n-nodes-base.linkedIn",
+            "typeVersion": 1,
+            "position": [
+                928,
+                224
+            ],
+            "id": "linkedin-post",
+            "credentials": {
+                "linkedInOAuth2Api": {
+                    "id": "iJqq6V8MxPM1C8tZ",
+                    "name": "LinkedIn account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "text": "={{ $json.improved_content }}",
+                "additionalFields": {}
+            },
+            "type": "n8n-nodes-base.twitter",
+            "typeVersion": 2,
+            "position": [
+                928,
+                384
+            ],
+            "id": "twitter-post",
+            "name": "X Post",
+            "credentials": {
+                "twitterOAuth2Api": {
+                    "id": "08djJr6n3F25razt",
+                    "name": "X account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const input = $input.first().json;\n\n// Log successful publish\nconsole.log('Published to platform:', input);\n\nreturn {\n  json: {\n    status: 'published',\n    platform: $node['Platform Router'].json?.platform || 'unknown',\n    post_id: input.id || input.postId || null,\n    message: 'Published successfully!',\n    timestamp: new Date().toISOString()\n  }\n};"
+            },
+            "id": "log-success",
+            "name": "Log Success",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1152,
+                304
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}",
+                "options": {}
+            },
+            "id": "respond-schedule",
+            "name": "Respond - Scheduled",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                704,
+                160
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}",
+                "options": {}
+            },
+            "id": "respond-success",
+            "name": "Respond - Success",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1376,
+                304
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}",
+                "options": {}
+            },
+            "id": "respond-cancelled",
+            "name": "Respond - Cancelled",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                704,
+                448
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "flutter-process-scheduled",
+                "options": {}
+            },
+            "id": "webhook-process-scheduled",
+            "name": "Webhook - Process Scheduled",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                -208,
+                640
+            ],
+            "webhookId": "process-scheduled-posts"
+        },
+        {
+            "parameters": {
+                "jsCode": "// This endpoint is called by the backend scheduler to process due posts\nconst data = $input.first().json;\nconst body = data.body || data;\n\nconst scheduledPosts = body.posts || [];\n\nconsole.log(`Processing ${scheduledPosts.length} scheduled posts`);\n\nreturn scheduledPosts.map(post => ({\n  json: {\n    action: 'publish',\n    post_id: post.id,\n    user_id: post.userId,\n    improved_content: post.enhancedContent || post.originalContent,\n    platforms: post.platforms,\n    user_credentials: post.userCredentials || {},\n    scheduled_at: post.scheduledAt\n  }\n}));"
+            },
+            "id": "process-scheduled",
+            "name": "Process Scheduled Posts",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                16,
+                640
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={\n  \"status\": \"processing\",\n  \"message\": \"Scheduled posts are being processed\",\n  \"count\": {{ $json.length || 0 }}\n}",
+                "options": {}
+            },
+            "id": "respond-processing",
+            "name": "Respond - Processing",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                480,
+                640
+            ]
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Webhook - Receive Draft": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent - Gemini",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Agent - Gemini": {
+            "main": [
+                [
+                    {
+                        "node": "Format AI Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Agent - Gemini",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format AI Response": {
+            "main": [
+                [
+                    {
+                        "node": "Send Draft to App",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook - Receive Approval": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Publish Request",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Publish Request": {
+            "main": [
+                [
+                    {
+                        "node": "Action Router",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Action Router": {
+            "main": [
+                [
+                    {
+                        "node": "Handle Schedule",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Split and Prepare Platforms",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Handle Cancel",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Handle Schedule": {
+            "main": [
+                [
+                    {
+                        "node": "Respond - Scheduled",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split and Prepare Platforms": {
+            "main": [
+                [
+                    {
+                        "node": "Platform Router",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Handle Cancel": {
+            "main": [
+                [
+                    {
+                        "node": "Respond - Cancelled",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Platform Router": {
+            "main": [
+                [
+                    {
+                        "node": "LinkedIn Post",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "X Post",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "LinkedIn Post": {
+            "main": [
+                [
+                    {
+                        "node": "Log Success",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "X Post": {
+            "main": [
+                [
+                    {
+                        "node": "Log Success",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Success": {
+            "main": [
+                [
+                    {
+                        "node": "Respond - Success",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook - Process Scheduled": {
+            "main": [
+                [
+                    {
+                        "node": "Process Scheduled Posts",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Process Scheduled Posts": {
+            "main": [
+                [
+                    {
+                        "node": "Respond - Processing",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Split and Prepare Platforms",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "executionOrder": "v1",
+        "availableInMCP": false
+    },
+    "versionId": "saas-edition-v1",
+    "meta": {
+        "instanceId": "f06c8a1cafda412338d5731fbbc44a8daa45809c9dd62a7d47489878b9c65371"
+    },
+    "id": "kvmrlcu-nLw-Wr-AKrR5-",
+    "tags": []
+}

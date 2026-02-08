@@ -17,13 +17,21 @@ class PostService {
 
     /**
      * Create and enhance a new post
+     * @param {string} userId - User ID
+     * @param {string} content - Original content
+     * @param {string[]} platforms - Target platforms
+     * @param {Object} options - Additional options (scheduledAt, etc.)
      */
-    async enhancePost(userId, content, platforms) {
+    async enhancePost(userId, content, platforms, options = {}) {
+        const { scheduledAt } = options;
+
         // Create draft post first
         const post = await PostModel.create({
             userId,
             originalContent: content,
             platforms: platforms.map(p => p.toLowerCase()),
+            scheduledAt: scheduledAt || null,
+            publishNow: !scheduledAt,
         });
 
         try {
@@ -45,6 +53,7 @@ class PostService {
                 ...updatedPost,
                 originalContent: content,
                 enhancedContent: enhancementResult.enhancedContent,
+                scheduledAt: scheduledAt || null,
                 metadata: enhancementResult.metadata,
             };
         } catch (error) {

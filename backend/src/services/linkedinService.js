@@ -8,22 +8,22 @@ const logger = require('../config/logger');
 
 class LinkedInService {
     constructor() {
-        this.clientId = process.env.LINKEDIN_CLIENT_ID;
-        this.clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
-        this.callbackUrl = `${env.API_URL || 'http://localhost:3000'}/api/auth/linkedin/callback`;
+        this.clientId = env.LINKEDIN_CLIENT_ID;
+        this.clientSecret = env.LINKEDIN_CLIENT_SECRET;
+        this.callbackUrl = env.LINKEDIN_REDIRECT_URI;
         this.scope = 'openid profile w_member_social email';
     }
 
     /**
      * Get authorization URL
      */
-    getAuthorizationUrl() {
+    getAuthorizationUrl(state) {
         const params = new URLSearchParams({
             response_type: 'code',
             client_id: this.clientId,
             redirect_uri: this.callbackUrl,
             scope: this.scope,
-            state: 'linkedin_auth_state', // Should be random in production
+            state: state || 'linkedin_auth_state', // Should be random in production
         });
 
         return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;

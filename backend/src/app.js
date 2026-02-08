@@ -77,8 +77,13 @@ app.use('/api', apiLimiter);
 // Routes
 // =========================
 
+const callbackRoutes = require('./routes/callback.routes');
+
 // Mount API routes
 app.use('/api', routes);
+
+// Mount OAuth Callback Routes (for manual copy/paste flow)
+app.use('/auth', callbackRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

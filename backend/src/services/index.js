@@ -7,6 +7,7 @@ const postService = require('./postService');
 const twitterService = require('./twitterService');
 const linkedinService = require('./linkedinService');
 const todoService = require('./todoService');
+const schedulerService = require('./schedulerService');
 
 module.exports = {
     aiService,
@@ -14,4 +15,6 @@ module.exports = {
     twitterService,
     linkedinService,
     todoService,
+    schedulerService,
 };
+

@@ -5,6 +5,8 @@ import '../core/theme/app_spacing.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import '../providers/todo_provider.dart';
+import 'scheduled_posts_screen.dart';
+import 'platform_connection_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -212,16 +214,28 @@ class HomeScreen extends StatelessWidget {
           onTap: () {},
         ),
         _FeatureCard(
-          title: 'Analytics',
-          imagePath: 'assets/images/defaults/analytics.png',
-          color: Colors.orange,
-          onTap: () {},
+          title: 'Scheduled',
+          icon: Icons.schedule_send_rounded,
+          color: const Color(0xFF3498DB),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ScheduledPostsScreen(),
+              ),
+            );
+          },
         ),
         _FeatureCard(
-          title: 'Settings',
-          imagePath: 'assets/images/defaults/setting.png',
-          color: Colors.grey,
-          onTap: () {},
+          title: 'Platforms',
+          icon: Icons.link_rounded,
+          color: const Color(0xFF9B59B6),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const PlatformConnectionScreen(),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -230,13 +244,15 @@ class HomeScreen extends StatelessWidget {
 
 class _FeatureCard extends StatelessWidget {
   final String title;
-  final String imagePath;
+  final String? imagePath;
+  final IconData? icon;
   final Color color;
   final VoidCallback onTap;
 
   const _FeatureCard({
     required this.title,
-    required this.imagePath,
+    this.imagePath,
+    this.icon,
     required this.color,
     required this.onTap,
   });
@@ -269,14 +285,16 @@ class _FeatureCard extends StatelessWidget {
                 color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Image.asset(
-                imagePath,
-                width: 32,
-                height: 32,
-                color: color,
-                errorBuilder: (context, error, stackTrace) =>
-                    Icon(Icons.broken_image, color: color, size: 32),
-              ),
+              child: imagePath != null
+                  ? Image.asset(
+                      imagePath!,
+                      width: 32,
+                      height: 32,
+                      color: color,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Icon(Icons.broken_image, color: color, size: 32),
+                    )
+                  : Icon(icon ?? Icons.widgets, color: color, size: 32),
             ),
             const SizedBox(height: AppSpacing.md),
             Text(

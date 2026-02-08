@@ -54,11 +54,13 @@ class PlatformModel {
                 accessToken: connectionData.accessToken || null,
                 refreshToken: connectionData.refreshToken || null,
                 expiresAt: connectionData.expiresAt || null,
+                email: connectionData.email || null,
+                password: connectionData.password || null, // In production, this should be encrypted
             },
             profile: {
                 id: connectionData.profileId || null,
                 name: connectionData.profileName || null,
-                username: connectionData.username || null,
+                username: connectionData.username || connectionData.email || null,
                 avatarUrl: connectionData.avatarUrl || null,
             },
             createdAt: now,

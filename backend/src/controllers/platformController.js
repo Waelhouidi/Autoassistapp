@@ -59,7 +59,7 @@ const initAuth = asyncHandler(async (req, res) => {
         return successResponse(res, { authUrl }, 'Twitter auth initiated');
     }
     else if (platform === 'linkedin') {
-        const authUrl = linkedinService.getAuthorizationUrl();
+        const authUrl = linkedinService.getAuthorizationUrl(userId);
         return successResponse(res, { authUrl }, 'LinkedIn auth initiated');
     }
 
@@ -161,6 +161,41 @@ const disconnectPlatform = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Connect platform with credentials
+ * POST /api/platforms/connect-credentials/:platform
+ */
+const connectWithCredentials = asyncHandler(async (req, res) => {
+    const { platform } = req.params;
+    const { email, password } = req.body;
+    const userId = req.user.id;
+
+    if (!email || !password) {
+        throw ApiError.badRequest('Email and password are required');
+    }
+
+    const platformLower = platform.toLowerCase();
+    if (!['linkedin', 'twitter'].includes(platformLower)) {
+        throw ApiError.badRequest('Invalid platform');
+    }
+
+    // Save connection
+    await PlatformModel.upsert(userId, platformLower, {
+        email,
+        password,
+        connected: true,
+        username: email,
+        profileName: email.split('@')[0]
+    });
+
+    // Update user status
+    await UserModel.updatePlatform(userId, platformLower, { connected: true });
+
+    logger.info('Platform connected with credentials', { userId, platform: platformLower });
+
+    return successResponse(res, { connected: true, platform: platformLower }, `${platform} connected successfully with credentials`);
+});
+
+/**
  * Refresh platform tokens
  * POST /api/platforms/refresh/:platform
  */
@@ -189,6 +224,7 @@ module.exports = {
     getStatus,
     initAuth,
     authCallback,
+    connectWithCredentials,
     disconnectPlatform,
     refreshToken,
 };

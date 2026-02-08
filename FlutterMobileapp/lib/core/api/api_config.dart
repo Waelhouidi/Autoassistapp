@@ -16,14 +16,14 @@ class ApiConfig {
   // static const String _host = '10.0.2.2'; // Android Emulator
   // static const String _host = 'localhost'; // iOS Simulator
   static const String _host =
-      '192.168.1.199'; // Physical Device (Update if needed!)
+      '192.168.0.196'; // Physical Device (Update if needed!)
 
   static const int _port = 3000;
   static const String baseUrl = 'http://$_host:$_port/api';
 
   // ============================================
 
-  // Endpoints
+  // Auth Endpoints
   static const String auth = '/auth';
   static const String login = '$auth/login';
   static const String register = '$auth/register';
@@ -31,13 +31,32 @@ class ApiConfig {
   static const String me = '$auth/me';
   static const String changePassword = '$auth/change-password';
 
+  // Todo Endpoints
   static const String todos = '/todos';
   static const String todoStats = '$todos/stats';
 
+  // Post Endpoints
   static const String posts = '/posts';
   static const String enhance = '$posts/enhance';
   static const String publish = '$posts/publish';
+  static const String schedule = '$posts/schedule';
+  static const String scheduled = '$posts/scheduled';
+  static const String postStats = '$posts/stats';
 
+  // Platform Endpoints (OAuth connections)
+  static const String platforms = '/platforms';
+  static const String platformStatus = '$platforms/status';
+  static String platformAuth(String platform) => '$platforms/auth/$platform';
+  static String platformCallback(String platform) =>
+      '$platforms/callback/$platform';
+  static String platformConnectCredentials(String platform) =>
+      '$platforms/connect-credentials/$platform';
+  static String platformDisconnect(String platform) =>
+      '$platforms/disconnect/$platform';
+  static String platformRefresh(String platform) =>
+      '$platforms/refresh/$platform';
+
+  // Health Check
   static const String health = '/health';
 
   // Timeouts

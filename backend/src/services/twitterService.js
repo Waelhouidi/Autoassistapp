@@ -8,9 +8,9 @@ const logger = require('../config/logger');
 
 class TwitterService {
     constructor() {
-        this.consumerKey = process.env.TWITTER_API_KEY;
-        this.consumerSecret = process.env.TWITTER_API_SECRET;
-        this.callbackUrl = `${env.API_URL || 'http://localhost:3000'}/api/auth/twitter/callback`;
+        this.consumerKey = env.TWITTER_CLIENT_ID;
+        this.consumerSecret = env.TWITTER_CLIENT_SECRET;
+        this.callbackUrl = env.TWITTER_REDIRECT_URI;
 
         // Initialize OAuth 1.0a client
         this.oauth = new OAuth(
